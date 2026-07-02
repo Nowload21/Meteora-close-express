@@ -13,6 +13,7 @@ const bundledEntries = {
 /** Small scripts with no npm deps — copied/bundled lightly. */
 const plainEntries = {
   "content-bridge": "src/content-bridge.ts", // ISOLATED world: chrome.storage bridge
+  "background": "src/background.ts", // service worker: cross-origin fetch proxy
   "popup": "src/popup.ts", // options/popup page
 };
 

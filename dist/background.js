@@ -1,0 +1,1 @@
+(()=>{chrome.runtime.onMessage.addListener((e,i,r)=>{if(e?.type==="mx-fetch")return(async()=>{try{let t=await fetch(e.url,e.init),s=await t.text();r({ok:t.ok,status:t.status,body:s})}catch(t){r({ok:!1,status:0,error:t instanceof Error?t.message:String(t)})}})(),!0});})();

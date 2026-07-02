@@ -27,6 +27,24 @@ window.addEventListener("message", async (event) => {
     await chrome.storage.sync.set({ [STORAGE_KEY]: next });
     window.postMessage({ source: SRC_BRIDGE, type: "settings", reqId: msg.reqId, payload: next }, "*");
   }
+
+  // Relay a cross-origin fetch (e.g. Jupiter API) to the background worker,
+  // which is not subject to the page's CSP / CORS / ad-block.
+  if (msg.type === "mx-fetch") {
+    chrome.runtime.sendMessage({ type: "mx-fetch", url: msg.url, init: msg.init }, (result) => {
+      window.postMessage(
+        {
+          source: SRC_BRIDGE,
+          type: "mx-fetch-result",
+          reqId: msg.reqId,
+          payload: chrome.runtime.lastError
+            ? { ok: false, status: 0, error: chrome.runtime.lastError.message }
+            : result,
+        },
+        "*"
+      );
+    });
+  }
 });
 
 // Push updates if settings change from the popup while a Meteora tab is open.

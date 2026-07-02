@@ -35,14 +35,70 @@ const pending = new Map<string, (s: Settings) => void>();
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
   const msg = event.data;
-  if (!msg || msg.source !== SRC_BRIDGE || msg.type !== "settings") return;
-  settings = msg.payload as Settings;
-  if (msg.reqId && pending.has(msg.reqId)) {
-    pending.get(msg.reqId)!(settings);
-    pending.delete(msg.reqId);
+  if (!msg || msg.source !== SRC_BRIDGE) return;
+
+  if (msg.type === "settings") {
+    settings = msg.payload as Settings;
+    if (msg.reqId && pending.has(msg.reqId)) {
+      pending.get(msg.reqId)!(settings);
+      pending.delete(msg.reqId);
+    }
+    ui?.syncSettings(settings);
   }
-  ui?.syncSettings(settings);
+
+  if (msg.type === "mx-fetch-result" && msg.reqId && fetchPending.has(msg.reqId)) {
+    fetchPending.get(msg.reqId)!(msg.payload as MxFetchResult);
+    fetchPending.delete(msg.reqId);
+  }
 });
+
+// --- Cross-origin fetch proxied through the background worker (bypasses the
+// page CSP / CORS / ad-block that block quote-api.jup.ag from the page). ---
+interface MxFetchResult {
+  ok: boolean;
+  status: number;
+  body?: string;
+  error?: string;
+}
+
+const fetchPending = new Map<string, (r: MxFetchResult) => void>();
+
+function mxFetch(url: string, init?: RequestInit): Promise<MxFetchResult> {
+  return new Promise((resolve) => {
+    const reqId = Math.random().toString(36).slice(2);
+    fetchPending.set(reqId, resolve);
+    window.postMessage(
+      {
+        source: SRC,
+        type: "mx-fetch",
+        reqId,
+        url,
+        init: init
+          ? { method: init.method, headers: init.headers, body: init.body }
+          : undefined,
+      },
+      "*"
+    );
+    setTimeout(() => {
+      if (fetchPending.has(reqId)) {
+        fetchPending.delete(reqId);
+        resolve({ ok: false, status: 0, error: "proxy fetch timeout" });
+      }
+    }, 20_000);
+  });
+}
+
+async function mxFetchJson(url: string, init?: RequestInit): Promise<any> {
+  const res = await mxFetch(url, init);
+  if (!res.ok || res.error) {
+    throw new Error(`fetch ${url} → ${res.error ?? "HTTP " + res.status}`);
+  }
+  try {
+    return JSON.parse(res.body ?? "null");
+  } catch {
+    throw new Error(`invalid JSON from ${url}`);
+  }
+}
 
 function requestSettings(): Promise<Settings> {
   return new Promise((resolve) => {
@@ -172,12 +228,43 @@ async function sendSigned(
   return sig;
 }
 
-async function confirm(conn: Connection, sig: string): Promise<void> {
-  const bh = await conn.getLatestBlockhash("confirmed");
-  await conn.confirmTransaction(
-    { signature: sig, blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight },
-    "confirmed"
-  );
+/**
+ * Confirm a transaction AND fail loudly if it reverted on-chain. Polls the
+ * signature status; on an on-chain error it fetches the tx logs so we know
+ * *why* (slippage, Token-2022 issue, etc.) instead of silently reporting
+ * success while the tokens stay in the wallet.
+ */
+async function confirmOrThrow(conn: Connection, sig: string, label: string): Promise<void> {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const { value } = await conn.getSignatureStatuses([sig]);
+    const st = value[0];
+    if (st) {
+      if (st.err) {
+        let logs = "";
+        try {
+          const tx = await conn.getTransaction(sig, {
+            maxSupportedTransactionVersion: 0,
+            commitment: "confirmed",
+          });
+          logs = (tx?.meta?.logMessages ?? []).slice(-4).join(" | ");
+        } catch {
+          /* logs are best-effort */
+        }
+        console.error(`[MeteoraExpress] ${label} FAILED`, sig, st.err, logs);
+        throw new Error(
+          `${label} échoué on-chain (${JSON.stringify(st.err)}). ` +
+            `Sig: ${sig}${logs ? ` — ${logs}` : ""}`
+        );
+      }
+      if (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized") {
+        console.log(`[MeteoraExpress] ${label} OK`, sig);
+        return;
+      }
+    }
+    await sleep(1500);
+  }
+  throw new Error(`${label}: timeout de confirmation. Sig: ${sig}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -197,31 +284,31 @@ async function jupiterSwapTx(
   userPubkey: string
 ): Promise<SwapBuild | null> {
   if (amount <= 0n) return null;
+  // Jupiter free (keyless) tier. Requests go through the background worker
+  // (mxFetchJson) so the page CSP / CORS / ad-block can't block them.
   const quoteUrl =
-    `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}` +
+    `https://lite-api.jup.ag/swap/v1/quote?inputMint=${inputMint}` +
     `&outputMint=${outputMint}&amount=${amount.toString()}` +
     `&slippageBps=${settings.slippageBps}&onlyDirectRoutes=false`;
-  const quote = await (await fetch(quoteUrl)).json();
+  const quote = await mxFetchJson(quoteUrl);
   if (!quote || quote.error) throw new Error(`Jupiter quote failed: ${quote?.error ?? "unknown"}`);
 
-  const swapRes = await (
-    await fetch("https://quote-api.jup.ag/v6/swap", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        quoteResponse: quote,
-        userPublicKey: userPubkey,
-        wrapAndUnwrapSol: true,
-        dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: {
-          priorityLevelWithMaxLamports: {
-            maxLamports: settings.maxPriorityLamports,
-            priorityLevel: settings.priorityLevel,
-          },
+  const swapRes = await mxFetchJson("https://lite-api.jup.ag/swap/v1/swap", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      quoteResponse: quote,
+      userPublicKey: userPubkey,
+      wrapAndUnwrapSol: true,
+      dynamicComputeUnitLimit: true,
+      prioritizationFeeLamports: {
+        priorityLevelWithMaxLamports: {
+          maxLamports: settings.maxPriorityLamports,
+          priorityLevel: settings.priorityLevel,
         },
-      }),
-    })
-  ).json();
+      },
+    }),
+  });
   if (!swapRes?.swapTransaction) throw new Error(`Jupiter swap build failed`);
   const buf = Uint8Array.from(atob(swapRes.swapTransaction), (c) => c.charCodeAt(0));
   return {
@@ -235,6 +322,7 @@ async function jupiterSwapTx(
 // ---------------------------------------------------------------------------
 
 async function closeAndSwap() {
+  console.log(`[MeteoraExpress] ▶ Close & Swap cliqué (v${MX_VERSION})`);
   const t0 = performance.now();
   const provider = getProvider();
   if (!provider) return ui.fail("Aucun wallet détecté (Solflare / Jupiter).");
@@ -284,7 +372,7 @@ async function closeAndSwap() {
 
   ui.busy("Envoi close…");
   const removeSigs = await Promise.all(signedRemoves.map((tx) => sendSigned(conn, tx)));
-  await Promise.all(removeSigs.map((s) => confirm(conn, s)));
+  await Promise.all(removeSigs.map((s) => confirmOrThrow(conn, s, "Close")));
 
   // --- Swap every non-target token released by the position ---
   const target: TargetToken = settings.defaultTarget;
@@ -316,7 +404,8 @@ async function closeAndSwap() {
     const signedSwaps = (await provider.signAllTransactions!(swapTxs)) as VersionedTransaction[];
     ui.busy("Envoi swap…");
     const swapSigs = await Promise.all(signedSwaps.map((tx) => sendSigned(conn, tx)));
-    await Promise.all(swapSigs.map((s) => confirm(conn, s)));
+    console.log("[MeteoraExpress] swap sigs", swapSigs);
+    await Promise.all(swapSigs.map((s) => confirmOrThrow(conn, s, "Swap")));
   }
 
   // --- Final status: amount received + total time ---
@@ -335,7 +424,13 @@ async function closeAndSwap() {
 // Boot
 // ---------------------------------------------------------------------------
 
+const MX_VERSION = "0.3.0";
+
 (async function boot() {
+  console.log(
+    `%c[MeteoraExpress] booted v${MX_VERSION}`,
+    "background:#22c55e;color:#08210f;font-weight:800;padding:2px 6px;border-radius:4px"
+  );
   settings = await requestSettings();
   ui = mountUI({
     initialTarget: settings.defaultTarget,

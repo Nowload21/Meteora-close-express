@@ -1,16 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Meteora Express — Close & Swap",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "One-click close & swap of a Meteora DLMM position, as fast as possible.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
     "https://app.meteora.ag/*",
     "https://quote-api.jup.ag/*",
     "https://lite-api.jup.ag/*",
+    "https://api.jup.ag/*",
     "https://*.helius-rpc.com/*",
     "https://*.solana.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Meteora Express settings"
