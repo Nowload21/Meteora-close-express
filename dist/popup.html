@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { width: 320px; margin: 0; padding: 14px; font-family: ui-sans-serif, system-ui, sans-serif; background: #0f1117; color: #e5e7eb; }
+      h1 { font-size: 15px; margin: 0 0 12px; }
+      label { display: block; font-size: 12px; color: #a3a9b5; margin: 12px 0 4px; }
+      input, select { width: 100%; box-sizing: border-box; background: #171a22; color: #e5e7eb; border: 1px solid #2a2f3a; border-radius: 8px; padding: 8px; font-size: 13px; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .row input[type=checkbox] { width: auto; }
+      .hint { font-size: 11px; color: #6b7280; margin-top: 4px; }
+      button { margin-top: 16px; width: 100%; border: 0; border-radius: 9px; padding: 10px; font-weight: 700; color: #08210f; background: linear-gradient(135deg,#7cf7a6,#22c55e); cursor: pointer; }
+      .saved { text-align: center; font-size: 12px; color: #7cf7a6; height: 14px; margin-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <h1>⚡ Meteora Express</h1>
+
+    <label>RPC endpoint (Helius conseillé pour la vitesse)</label>
+    <input id="rpcUrl" placeholder="https://mainnet.helius-rpc.com/?api-key=…" />
+    <div class="hint">Un RPC privé rapide change tout sur la vitesse d'inclusion.</div>
+
+    <label>Consolidation par défaut</label>
+    <select id="defaultTarget">
+      <option value="SOL">SOL</option>
+      <option value="USDC">USDC</option>
+    </select>
+
+    <label>Slippage (%)</label>
+    <input id="slippagePct" type="number" min="0.1" max="50" step="0.1" />
+    <div class="hint">Tolérance de prix sur le swap. 1 % est un bon défaut.</div>
+
+    <label>Priority fee</label>
+    <select id="priorityLevel">
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="veryHigh">Very High</option>
+    </select>
+
+    <label>Plafond priority fee (SOL)</label>
+    <input id="maxPrioritySol" type="number" min="0" step="0.0001" />
+    <div class="hint">Pourboire max payé aux validateurs pour passer vite. 0.002 SOL est raisonnable.</div>
+
+    <label class="row"><input id="skipPreflight" type="checkbox" /> Skip preflight (plus rapide)</label>
+
+    <button id="save">Enregistrer</button>
+    <div class="saved" id="saved"></div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

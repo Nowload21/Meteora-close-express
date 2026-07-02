@@ -1,0 +1,5 @@
+node_modules/
+*.log
+
+# dist/ is intentionally committed so non-developers can load the extension
+# without a build step. Rebuild it with `npm run build`.
