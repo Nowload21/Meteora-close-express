@@ -1,95 +1,126 @@
 # ⚡ Meteora Express — Close & Swap
 
-A Chrome extension that **closes a Meteora DLMM position and swaps the proceeds to SOL or USDC in one click**, as fast as possible. A floating button appears at the bottom of any `app.meteora.ag` page.
+> Close a Meteora **DLMM** position and swap the proceeds to **SOL** or **USDC** in a single click — as fast as possible.
 
-It reads the position straight from the page you're on, closes it (removes 100% liquidity + claims fees + closes the position) and routes the released tokens through **Jupiter** to the currency you picked — all signed by your own wallet (Solflare / Jupiter).
+![Chrome](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white)
+![Solana](https://img.shields.io/badge/Solana-Meteora%20DLMM-14F195?logo=solana&logoColor=white)
+![Jupiter](https://img.shields.io/badge/Swaps-Jupiter-FBA43A)
+![License](https://img.shields.io/badge/License-MIT-green)
 
----
-
-## What it does, in one pass
-
-1. Detects the pool from the URL `app.meteora.ag/dlmm/<pool>`.
-2. Fetches **all your positions** on that pool via the Meteora DLMM SDK.
-3. Builds the `removeLiquidity` transactions (100%, **claim fees + close** the position), with a high priority fee.
-4. Signs everything at once and sends it through **your RPC** (skip-preflight by default for speed).
-5. Waits for the released tokens to land, then **swaps every non-target token to your target** (SOL or USDC) via Jupiter.
-6. Shows the amount received and the total time on the button bar, e.g. `≈ +12.3456 SOL in 8.2s`.
+A floating **⚡ Close & Swap** button appears at the bottom of every `app.meteora.ag` page. It reads the position from the page you're on, removes 100% of the liquidity, claims fees, closes the position, and routes the released tokens through Jupiter to the currency you picked — all signed by **your own wallet** (Solflare / Jupiter). The extension never holds your keys.
 
 ---
 
-## Install
+## Features
 
-You need [Node.js](https://nodejs.org) (v18+) installed.
+- **One click** — close + swap chained automatically, no back-and-forth.
+- **Reads the position from the page** — no copy-pasting pool or position addresses.
+- **Swap target selector** — SOL or USDC, right next to the button, remembered across sessions.
+- **Fast by design** — high priority fees, skip-preflight, and requests routed to your own RPC.
+- **Token-2022 ready** — handles the newer memecoin token standard.
+- **Honest status** — verifies each transaction on-chain and shows the amount received + total time (e.g. `≈ +12.3456 SOL in 8.2s`).
+- **Settings sync** — your config replicates across computers via your Chrome profile.
+
+---
+
+## Installation
+
+### Option A — Download & load (easiest, no tools needed)
+
+1. Go to the [**Releases**](https://github.com/Nowload21/meteora-close-express/releases) page and download the latest `meteora-close-express.zip`.
+2. Unzip it — you get a folder named `meteora-close-express`.
+3. Open `chrome://extensions` and turn on **Developer mode** (top-right toggle).
+4. Click **Load unpacked** and select that folder. Done — the ⚡ icon appears in your toolbar.
+
+### Option B — Build from source
+
+Requires [Node.js](https://nodejs.org) 18+.
 
 ```bash
-git clone https://github.com/<your-username>/meteora-close-express.git
+git clone https://github.com/Nowload21/meteora-close-express.git
 cd meteora-close-express
 npm install
-npm run build      # produces dist/  (use `npm run watch` while developing)
+npm run build        # outputs dist/
 ```
 
-Then load it into Chrome:
+Then in `chrome://extensions` → **Developer mode** → **Load unpacked** → select the **`dist/`** folder.
 
-1. Open `chrome://extensions`
-2. Turn on **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Select the **`dist/`** folder inside the project
-
-A card named **⚡ Meteora Express — Close & Swap** appears. Done.
-
-> A pre-built `dist/` is committed to the repo, so if you don't want to build it yourself you can just download the repo and load the `dist/` folder directly.
+> A pre-built `dist/` is also committed to the repo, so Option B works even without running the build.
 
 ---
 
-## Get a free Helius RPC (beginners — do this, it matters a lot)
+## Get a free Helius RPC (beginners — do this, it really matters)
 
-The extension talks to the Solana blockchain through an **RPC endpoint**. The default public one is slow and rate-limited, which makes the "wait for tokens" step drag on. A private **Helius** endpoint is free and makes everything land in 1–2 seconds instead of 10–40. Setup takes two minutes:
+The extension talks to Solana through an **RPC endpoint**. The default public one is slow and rate-limited, which makes the swap step drag. A free **Helius** endpoint makes everything land in 1–2 seconds instead of 10–40. Two minutes:
 
-1. Go to **https://helius.dev** and click **Sign up** (free, email or Google).
-2. Once logged in, you land on the **Dashboard**. Your first API key is created automatically — look for a line like:
+1. Go to **https://helius.dev** → **Sign up** (free).
+2. On the **Dashboard**, your API key is created automatically. Find your **Mainnet RPC URL**, which looks like:
    `https://mainnet.helius-rpc.com/?api-key=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
-3. Click **Copy** on that **Mainnet RPC URL** (it already contains your key).
-4. Open the extension (puzzle icon 🧩 in Chrome → pin **Meteora Express** → click it).
-5. Paste the URL into the **RPC endpoint** field and click **Save**.
+3. Click **Copy** on that URL (it already contains your key).
+4. Open the extension (toolbar ⚡ icon → **settings**), paste it into **RPC endpoint**, and **Save**.
 
-That's it. Keep this URL private — anyone with it can send requests on your quota (but they **cannot** touch your funds; your wallet keys are never involved).
+Keep this URL private — anyone with it can spend your request quota (but they **cannot** touch your funds; your wallet keys are never involved).
 
 ---
 
 ## Recommended settings
 
-These are a solid starting point. **Adapt them to your own risk/speed preference** — they are not one-size-fits-all.
+A solid starting point. **Adapt to your own risk/speed preference** — this is not one-size-fits-all.
 
-| Setting | Recommended | Why / when to change |
+| Setting | Recommended | When to change |
 |---|---|---|
 | **RPC endpoint** | Your Helius URL | The single biggest speed factor. Always use a private RPC. |
-| **Default consolidation** | `SOL` | Pick `USDC` if you'd rather exit to a stablecoin. Also switchable live via the selector next to the button. |
-| **Slippage** | `2 %` | Price tolerance on the swap. Volatile/illiquid memecoins may need more (3–5%); blue-chips can go lower (0.5–1%). Too low → the swap can fail when price moves. |
-| **Priority fee** | `Very High` | How aggressively you tip validators to land fast. Lower it (`High`/`Medium`) on calm days to save fees. |
-| **Priority fee cap (SOL)** | `0.008` | Hard ceiling on that tip, for safety. `0.002` is fine most days; raise it when the network is congested and you *must* get out. |
-| **Skip preflight** | `ON` | Faster (skips a simulation). Turn it **OFF** if you want to debug a failing transaction (a failed tx still costs fees on-chain when skip-preflight is on). |
+| **Default consolidation** | `SOL` | Pick `USDC` to exit to a stablecoin. Also switchable live next to the button. |
+| **Slippage** | `2 %` | Volatile/illiquid memecoins may need 3–5%; blue-chips can go 0.5–1%. Too low → the swap can fail when price moves. |
+| **Priority fee** | `Very High` | Lower it (`High`/`Medium`) on calm days to save on fees. |
+| **Priority fee cap (SOL)** | `0.008` | Safety ceiling on the validator tip. `0.002` is fine most days; raise it during congestion. |
+| **Skip preflight** | `ON` | Faster. Turn **OFF** to debug a failing swap. |
 
-> Settings are stored with `chrome.storage.sync`, so if you use the same Chrome profile on several computers they replicate automatically.
+Settings are stored with `chrome.storage.sync`, so the same Chrome profile on multiple computers replicates them automatically.
+
+---
+
+## Usage
+
+1. Open one of your DLMM positions on `app.meteora.ag/dlmm/<pool>`.
+2. Choose the target in the selector next to the button (`→ SOL` / `→ USDC`).
+3. Click **⚡ Close & Swap**.
+4. Watch the status: `Closing…` → `Waiting for released tokens…` → `Building swaps…` → `Signing…` → `≈ +<amount> <target> in <time>s`.
+
+---
+
+## How it works
+
+```
+ Meteora page (MAIN world)                Extension background
+ ┌───────────────────────────┐           ┌──────────────────────┐
+ │ ⚡ button + DLMM SDK       │  fetch    │ Jupiter API proxy     │
+ │ + wallet (Solflare/Jup)   │──────────▶│ (bypasses page CSP,   │
+ │                           │◀──────────│  CORS & ad-block)     │
+ └───────────┬───────────────┘           └──────────────────────┘
+             │ signAllTransactions + send via your RPC
+             ▼
+    Solana: removeLiquidity (+claim +close)  →  Jupiter swap → SOL/USDC
+```
+
+1. Detect the pool from the URL and load all your positions via the Meteora DLMM SDK.
+2. Build `removeLiquidity` (100% + claim + close) with a priority fee; sign and send via your RPC.
+3. Poll until the released tokens show up, then quote + build a Jupiter swap for every non-target token.
+4. Sign and send the swaps; verify each transaction's real on-chain status before reporting success.
 
 ---
 
 ## Auto-approve (going fully click-free)
 
-A browser extension **cannot** click another wallet's confirmation popup (Solflare/Jupiter run in their own `chrome-extension://` context, out of reach). To make the flow require **no clicks**:
-
-1. Enable **Auto-Approve** in **Solflare** (Settings → *Auto-Approve* / trusted session) or the Jupiter equivalent, for `app.meteora.ag`, at the start of your session.
-2. The extension calls `signAllTransactions`; with Auto-Approve on, nothing blocks and close + swap chain automatically.
-
-Without Auto-Approve everything still works — you'll just confirm 2 popups (the close, then the swap). Only enable Auto-Approve on `app.meteora.ag`, and turn it off when you're done.
+A browser extension **cannot** click another wallet's confirmation popup — Solflare/Jupiter run in their own `chrome-extension://` context, out of reach. To make the flow require **no clicks**: enable **Auto-Approve** in Solflare (Settings → *Auto-Approve*) or the Jupiter equivalent for `app.meteora.ag` at the start of your session. The extension calls `signAllTransactions`; with Auto-Approve on, nothing blocks. Without it, you simply confirm 2 popups (close, then swap). Only enable it on `app.meteora.ag`, and turn it off when done.
 
 ---
 
-## How to use it
+## APIs used
 
-1. Open one of your DLMM positions on `app.meteora.ag/dlmm/<pool>`.
-2. Pick the target currency in the selector next to the button (`→ SOL` / `→ USDC`).
-3. Click **⚡ Close & Swap**.
-4. Watch the status: `Closing…` → `Waiting for released tokens…` → `Building swaps…` → `Signing…` → `≈ +<amount> <target> in <time>s`.
+- **Meteora DLMM SDK** (`@meteora-ag/dlmm`) — read positions, build close transactions.
+- **Jupiter** (`lite-api.jup.ag/swap/v1`) — quote + build the swap transaction.
+- **Your Solana RPC** — sending and confirming transactions (Helius recommended).
 
 ---
 
@@ -101,44 +132,48 @@ Without Auto-Approve everything still works — you'll just confirm 2 popups (th
 
 ### Native-SOL coverage (which pool + target combos are fully handled)
 
-When a position closes, you get **both** pool tokens back. The extension swaps every
-**SPL token** that isn't your target — but the **SOL side of a pool comes back as native
-SOL** (not a swappable token), so it is never re-swapped. In practice:
+When a position closes you get **both** pool tokens back. The extension swaps every **SPL token** that isn't your target — but the **SOL side of a pool comes back as native SOL** (not a swappable token), so it is never re-swapped.
 
 | Pool | Target | Result | Fully covered? |
 |---|---|---|---|
 | `TOKEN/SOL` | **SOL** | TOKEN → SOL; the SOL stays SOL | ✅ Yes — you wanted SOL |
-| `TOKEN/SOL` | **USDC** | TOKEN → USDC, **but the SOL stays SOL** (not converted to USDC) | ⚠️ No — you end up with USDC **+** leftover SOL |
+| `TOKEN/SOL` | **USDC** | TOKEN → USDC, **but the SOL stays SOL** | ⚠️ No — you end up with USDC **+** leftover SOL |
 | `TOKEN/USDC` | SOL or USDC | works normally | ✅ Yes |
 | `TOKEN/TOKEN` | SOL or USDC | works normally | ✅ Yes |
 
-**Takeaway:** the only partial case is a pool that contains SOL **when you pick USDC as the
-target** — the token side becomes USDC but the SOL side stays as SOL. For `X/SOL` pools,
-choose **SOL** as the target (or swap the leftover SOL manually afterwards).
+**Takeaway:** the only partial case is a pool containing SOL **when you pick USDC as the target**. For `X/SOL` pools, choose **SOL** (or swap the leftover SOL manually afterwards).
 
 ---
 
-## Security
+## Security — verify it yourself
 
 - The extension holds **no keys** — your own wallet signs every transaction.
-- No settings, keys, or secrets are stored in the code or the repo; they live only in your browser's local storage.
-- The priority-fee cap limits how much you can ever overpay in fees.
+- **No secrets in the repo.** Your RPC URL and settings live only in your browser's local storage, never in the code.
+- Every transaction's real on-chain status is checked before the UI reports success.
+- The priority-fee cap bounds how much you can ever overpay in fees.
+- All source is here and readable: `src/` (TypeScript) is bundled into `dist/` by `build.mjs`.
 
 ---
 
 ## Project structure
 
 ```
-public/manifest.json      MV3 manifest (MAIN + ISOLATED content scripts)
+public/manifest.json      MV3 manifest (MAIN + ISOLATED content scripts + background)
+public/icons/             extension icons (16/48/128)
 public/popup.html         settings page
 src/main-world.ts         MAIN world: button + DLMM + Jupiter + wallet
 src/ui.ts                 floating button (shadow DOM)
-src/content-bridge.ts     ISOLATED world: chrome.storage bridge
+src/content-bridge.ts     ISOLATED world: chrome.storage + fetch relay
+src/background.ts         service worker: cross-origin fetch proxy
 src/popup.ts              settings logic
 src/settings.ts           shared schema + defaults
 build.mjs                 esbuild bundling + node polyfills
 ```
 
 ---
+
+## License
+
+[MIT](LICENSE) © 2026 Nowload21
 
 *Not affiliated with Meteora, Jupiter, Helius or Solflare. Use at your own risk.*
