@@ -9,6 +9,12 @@
 
 A floating **⚡ Close & Swap** button appears at the bottom of every `app.meteora.ag` page. It reads the position from the page you're on, removes 100% of the liquidity, claims fees, closes the position, and routes the released tokens through Jupiter to the currency you picked — all signed by **your own wallet** (Solflare / Jupiter). The extension never holds your keys.
 
+> [!IMPORTANT]
+> **Clicking Close & Swap closes *all* of your open positions on that pool — not just one.**
+> If you hold several positions in the same pool, one click removes 100% liquidity, claims fees and closes **every one of them**, then swaps the combined proceeds to your target. It cannot close a single position on its own, because the page URL identifies the **pool**, not an individual position.
+>
+> This is intentional for a fast, full exit. A per-position picker (choose which positions to close) may be added **based on user feedback** — if you need it, please [open an issue](https://github.com/Nowload21/meteora-close-express/issues).
+
 ---
 
 ## Features
@@ -86,6 +92,8 @@ Settings are stored with `chrome.storage.sync`, so the same Chrome profile on mu
 2. Choose the target in the selector next to the button (`→ SOL` / `→ USDC`).
 3. Click **⚡ Close & Swap**.
 4. Watch the status: `Closing…` → `Waiting for released tokens…` → `Building swaps…` → `Signing…` → `≈ +<amount> <target> in <time>s`.
+
+> ⚠️ Have several positions on this pool? All of them are closed in one go (the status shows `Closing N position(s)…`). See the note at the top of this README.
 
 ---
 
