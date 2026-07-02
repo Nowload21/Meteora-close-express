@@ -96,9 +96,25 @@ Without Auto-Approve everything still works — you'll just confirm 2 popups (th
 ## Known limitations
 
 - **Wallet must be already connected** to the site. Detection order: `window.solflare`, `window.jupiter`, `window.solana`.
-- **X/SOL pools with USDC target**: the SDK unwraps SOL natively on close, so the released SOL (native) isn't re-swapped. Use **SOL** as the target for `X/SOL` pools. `TOKEN/USDC → USDC` and `TOKEN/TOKEN` work fine.
 - The amount shown is Jupiter's **estimated** output (hence `≈`); the executed amount can vary slightly with slippage.
 - Public RPCs can lag on the post-close balance read (the extension waits up to ~45s). Helius removes this.
+
+### Native-SOL coverage (which pool + target combos are fully handled)
+
+When a position closes, you get **both** pool tokens back. The extension swaps every
+**SPL token** that isn't your target — but the **SOL side of a pool comes back as native
+SOL** (not a swappable token), so it is never re-swapped. In practice:
+
+| Pool | Target | Result | Fully covered? |
+|---|---|---|---|
+| `TOKEN/SOL` | **SOL** | TOKEN → SOL; the SOL stays SOL | ✅ Yes — you wanted SOL |
+| `TOKEN/SOL` | **USDC** | TOKEN → USDC, **but the SOL stays SOL** (not converted to USDC) | ⚠️ No — you end up with USDC **+** leftover SOL |
+| `TOKEN/USDC` | SOL or USDC | works normally | ✅ Yes |
+| `TOKEN/TOKEN` | SOL or USDC | works normally | ✅ Yes |
+
+**Takeaway:** the only partial case is a pool that contains SOL **when you pick USDC as the
+target** — the token side becomes USDC but the SOL side stays as SOL. For `X/SOL` pools,
+choose **SOL** as the target (or swap the leftover SOL manually afterwards).
 
 ---
 
