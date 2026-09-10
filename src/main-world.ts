@@ -146,6 +146,33 @@ async function connectedPubkey(provider: WalletProvider): Promise<PublicKey> {
   return new PublicKey(res.publicKey.toString());
 }
 
+async function signTransactions<T extends Transaction | VersionedTransaction>(
+  provider: WalletProvider,
+  txs: T[]
+): Promise<T[]> {
+  // Jupiter currently exposes signAllTransactions but throws "Unexpected error"
+  // for Meteora transaction batches. Its single-transaction signer works.
+  if (provider.signAllTransactions) {
+    try {
+      return (await provider.signAllTransactions(txs)) as T[];
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!provider.signTransaction || !/unexpected error/i.test(message)) throw error;
+      console.warn("[MeteoraExpress] Signature groupée refusée; passage en signature individuelle.");
+    }
+  }
+
+  if (!provider.signTransaction) {
+    throw new Error("Le wallet ne supporte pas la signature des transactions.");
+  }
+
+  const signed: T[] = [];
+  for (const tx of txs) {
+    signed.push((await provider.signTransaction(tx)) as T);
+  }
+  return signed;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -326,7 +353,9 @@ async function closeAndSwap() {
   const t0 = performance.now();
   const provider = getProvider();
   if (!provider) return ui.fail("Aucun wallet détecté (Solflare / Jupiter).");
-  if (!provider.signAllTransactions) return ui.fail("Le wallet ne supporte pas signAllTransactions.");
+  if (!provider.signAllTransactions && !provider.signTransaction) {
+    return ui.fail("Le wallet ne supporte pas la signature des transactions.");
+  }
 
   const poolAddress = poolAddressFromUrl();
   if (!poolAddress) return ui.fail("Ouvre une page /dlmm/<pool> pour détecter la position.");
@@ -368,7 +397,7 @@ async function closeAndSwap() {
   }
 
   ui.busy("Signature (auto-approve)…");
-  const signedRemoves = (await provider.signAllTransactions!(removeTxs)) as Transaction[];
+  const signedRemoves = await signTransactions(provider, removeTxs);
 
   ui.busy("Envoi close…");
   const removeSigs = await Promise.all(signedRemoves.map((tx) => sendSigned(conn, tx)));
@@ -401,7 +430,7 @@ async function closeAndSwap() {
 
   if (swapTxs.length) {
     ui.busy("Signature swap (auto-approve)…");
-    const signedSwaps = (await provider.signAllTransactions!(swapTxs)) as VersionedTransaction[];
+    const signedSwaps = await signTransactions(provider, swapTxs);
     ui.busy("Envoi swap…");
     const swapSigs = await Promise.all(signedSwaps.map((tx) => sendSigned(conn, tx)));
     console.log("[MeteoraExpress] swap sigs", swapSigs);
@@ -424,7 +453,7 @@ async function closeAndSwap() {
 // Boot
 // ---------------------------------------------------------------------------
 
-const MX_VERSION = "0.3.0";
+const MX_VERSION = "0.3.1";
 
 (async function boot() {
   console.log(
