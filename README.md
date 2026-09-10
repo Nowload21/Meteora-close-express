@@ -106,7 +106,7 @@ Settings are stored with `chrome.storage.sync`, so the same Chrome profile on mu
  │ + wallet (Solflare/Jup)   │──────────▶│ (bypasses page CSP,   │
  │                           │◀──────────│  CORS & ad-block)     │
  └───────────┬───────────────┘           └──────────────────────┘
-             │ signAllTransactions + send via your RPC
+             │ wallet signature + send via your RPC
              ▼
     Solana: removeLiquidity (+claim +close)  →  Jupiter swap → SOL/USDC
 ```
@@ -120,7 +120,7 @@ Settings are stored with `chrome.storage.sync`, so the same Chrome profile on mu
 
 ## Auto-approve (going fully click-free)
 
-A browser extension **cannot** click another wallet's confirmation popup — Solflare/Jupiter run in their own `chrome-extension://` context, out of reach. To make the flow require **no clicks**: enable **Auto-Approve** in Solflare (Settings → *Auto-Approve*) or the Jupiter equivalent for `app.meteora.ag` at the start of your session. The extension calls `signAllTransactions`; with Auto-Approve on, nothing blocks. Without it, you simply confirm 2 popups (close, then swap). Only enable it on `app.meteora.ag`, and turn it off when done.
+A browser extension **cannot** click another wallet's confirmation popup — Solflare/Jupiter run in their own `chrome-extension://` context, out of reach. To make the flow require **no clicks**: enable **Auto-Approve** in Solflare (Settings → *Auto-Approve*) or the Jupiter equivalent for `app.meteora.ag` at the start of your session. The extension uses batch signing where supported and signs sequentially on Jupiter Wallet. Without Auto-Approve, confirm each requested signature. Only enable it on `app.meteora.ag`, and turn it off when done.
 
 ---
 
