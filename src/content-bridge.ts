@@ -50,8 +50,9 @@ window.addEventListener("message", async (event) => {
 // Push updates if settings change from the popup while a Meteora tab is open.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes[STORAGE_KEY]) {
+    const changedSettings = changes[STORAGE_KEY].newValue as Partial<Settings> | undefined;
     window.postMessage(
-      { source: SRC_BRIDGE, type: "settings", payload: { ...DEFAULT_SETTINGS, ...changes[STORAGE_KEY].newValue } },
+      { source: SRC_BRIDGE, type: "settings", payload: { ...DEFAULT_SETTINGS, ...(changedSettings ?? {}) } },
       "*"
     );
   }

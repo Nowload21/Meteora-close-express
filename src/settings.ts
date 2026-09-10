@@ -5,6 +5,8 @@ export type PriorityLevel = "medium" | "high" | "veryHigh";
 export interface Settings {
   /** RPC endpoint used to build/send transactions. Use a private one (Helius) for speed. */
   rpcUrl: string;
+  /** Wallet Standard name selected from the in-page action bar. */
+  walletName: string;
   /** Default consolidation target for the swap. */
   defaultTarget: TargetToken;
   /** Slippage for the Jupiter swap, in basis points (100 = 1%). */
@@ -26,6 +28,7 @@ export const KNOWN_MINTS: Record<TargetToken, string> = {
 
 export const DEFAULT_SETTINGS: Settings = {
   rpcUrl: "https://api.mainnet-beta.solana.com",
+  walletName: "",
   defaultTarget: "SOL",
   slippageBps: 100,
   priorityLevel: "veryHigh",

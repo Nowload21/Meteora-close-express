@@ -17,7 +17,9 @@ function fill(s: Settings) {
 }
 
 async function save() {
+  const current = await load();
   const next: Settings = {
+    ...current,
     rpcUrl: ($("rpcUrl") as HTMLInputElement).value.trim() || DEFAULT_SETTINGS.rpcUrl,
     defaultTarget: ($("defaultTarget") as HTMLSelectElement).value as Settings["defaultTarget"],
     slippageBps: Math.max(

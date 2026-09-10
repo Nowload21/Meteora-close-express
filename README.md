@@ -7,7 +7,7 @@
 ![Jupiter](https://img.shields.io/badge/Swaps-Jupiter-FBA43A)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-A floating **⚡ Close & Swap** button appears at the bottom of every `app.meteora.ag` page. It reads the position from the page you're on, removes 100% of the liquidity, claims fees, closes the position, and routes the released tokens through Jupiter to the currency you picked — all signed by **your own wallet** (Solflare / Jupiter). The extension never holds your keys.
+A floating **⚡ Close & Swap** button appears at the bottom of every `app.meteora.ag` page. It reads the position from the page you're on, removes 100% of the liquidity, claims fees, closes the position, and routes the released tokens through Jupiter to the currency you picked — all signed by **your own Wallet Standard-compatible wallet**. The extension never holds your keys.
 
 > [!IMPORTANT]
 > **Clicking Close & Swap closes *all* of your open positions on that pool — not just one.**
@@ -22,6 +22,7 @@ A floating **⚡ Close & Swap** button appears at the bottom of every `app.meteo
 - **One click** — close + swap chained automatically, no back-and-forth.
 - **Reads the position from the page** — no copy-pasting pool or position addresses.
 - **Swap target selector** — SOL or USDC, right next to the button, remembered across sessions.
+- **Wallet Standard** — discovers compatible Solana wallets and lets you choose one from the action bar.
 - **Fast by design** — high priority fees, skip-preflight, and requests routed to your own RPC.
 - **Token-2022 ready** — handles the newer memecoin token standard.
 - **Honest status** — verifies each transaction on-chain and shows the amount received + total time (e.g. `≈ +12.3456 SOL in 8.2s`).
@@ -89,8 +90,8 @@ Settings are stored with `chrome.storage.sync`, so the same Chrome profile on mu
 ## Usage
 
 1. Open one of your DLMM positions on `app.meteora.ag/dlmm/<pool>`.
-2. Choose the target in the selector next to the button (`→ SOL` / `→ USDC`).
-3. Click **⚡ Close & Swap**.
+2. Choose your wallet and the target (`→ SOL` / `→ USDC`) in the selectors next to the button.
+3. Click **⚡ Close & Swap** and approve the wallet connection if requested.
 4. Watch the status: `Closing…` → `Waiting for released tokens…` → `Building swaps…` → `Signing…` → `≈ +<amount> <target> in <time>s`.
 
 > ⚠️ Have several positions on this pool? All of them are closed in one go (the status shows `Closing N position(s)…`). See the note at the top of this README.
@@ -103,7 +104,7 @@ Settings are stored with `chrome.storage.sync`, so the same Chrome profile on mu
  Meteora page (MAIN world)                Extension background
  ┌───────────────────────────┐           ┌──────────────────────┐
  │ ⚡ button + DLMM SDK       │  fetch    │ Jupiter API proxy     │
- │ + wallet (Solflare/Jup)   │──────────▶│ (bypasses page CSP,   │
+ │ + Wallet Standard         │──────────▶│ (bypasses page CSP,   │
  │                           │◀──────────│  CORS & ad-block)     │
  └───────────┬───────────────┘           └──────────────────────┘
              │ wallet signature + send via your RPC
@@ -111,22 +112,24 @@ Settings are stored with `chrome.storage.sync`, so the same Chrome profile on mu
     Solana: removeLiquidity (+claim +close)  →  Jupiter swap → SOL/USDC
 ```
 
-1. Detect the pool from the URL and load all your positions via the Meteora DLMM SDK.
-2. Build `removeLiquidity` (100% + claim + close) with a priority fee; sign and send via your RPC.
-3. Poll until the released tokens show up, then quote + build a Jupiter swap for every non-target token.
-4. Sign and send the swaps; verify each transaction's real on-chain status before reporting success.
+1. Discover registered Solana wallets through Wallet Standard and request the selected account.
+2. Detect the pool from the URL and load all your positions via the Meteora DLMM SDK.
+3. Build `removeLiquidity` (100% + claim + close) with a priority fee; serialize and sign through `solana:signTransaction`, then send via your RPC.
+4. Poll until the released tokens show up, then quote + build a Jupiter swap for every non-target token.
+5. Sign and send the swaps; verify each transaction's real on-chain status before reporting success.
 
 ---
 
 ## Auto-approve (going fully click-free)
 
-A browser extension **cannot** click another wallet's confirmation popup — Solflare/Jupiter run in their own `chrome-extension://` context, out of reach. To make the flow require **no clicks**: enable **Auto-Approve** in Solflare (Settings → *Auto-Approve*) or the Jupiter equivalent for `app.meteora.ag` at the start of your session. The extension uses batch signing where supported and signs sequentially on Jupiter Wallet. Without Auto-Approve, confirm each requested signature. Only enable it on `app.meteora.ag`, and turn it off when done.
+A browser extension **cannot** click another wallet's confirmation popup — wallets run in their own `chrome-extension://` context, out of reach. To make the flow require **no clicks**, enable your wallet's Auto-Approve option for `app.meteora.ag` at the start of your session. Without it, confirm each requested signature. Only enable it on `app.meteora.ag`, and turn it off when done.
 
 ---
 
 ## APIs used
 
 - **Meteora DLMM SDK** (`@meteora-ag/dlmm`) — read positions, build close transactions.
+- **Wallet Standard** (`@wallet-standard/*`, `@solana/wallet-standard-features`) — discover wallets, connect accounts and sign serialized transactions.
 - **Jupiter** (`lite-api.jup.ag/swap/v1`) — quote + build the swap transaction.
 - **Your Solana RPC** — sending and confirming transactions (Helius recommended).
 
@@ -134,7 +137,7 @@ A browser extension **cannot** click another wallet's confirmation popup — Sol
 
 ## Known limitations
 
-- **Wallet must be already connected** to the site. Detection order: `window.solflare`, `window.jupiter`, `window.solana`.
+- The wallet must expose Wallet Standard's `standard:connect` and `solana:signTransaction` features for Solana mainnet. A legacy injected-provider fallback remains available when no standard wallet is registered.
 - The amount shown is Jupiter's **estimated** output (hence `≈`); the executed amount can vary slightly with slippage.
 - Public RPCs can lag on the post-close balance read (the extension waits up to ~45s). Helius removes this.
 
@@ -170,6 +173,7 @@ public/manifest.json      MV3 manifest (MAIN + ISOLATED content scripts + backgr
 public/icons/             extension icons (16/48/128)
 public/popup.html         settings page
 src/main-world.ts         MAIN world: button + DLMM + Jupiter + wallet
+src/wallet-standard.ts    Wallet Standard discovery, connection + signing adapter
 src/ui.ts                 floating button (shadow DOM)
 src/content-bridge.ts     ISOLATED world: chrome.storage + fetch relay
 src/background.ts         service worker: cross-origin fetch proxy

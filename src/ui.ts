@@ -5,6 +5,7 @@ export interface UI {
   busy(msg: string): void;
   done(msg: string): void;
   fail(msg: string): void;
+  setWallets(names: string[], selectedName: string): void;
   syncSettings(s: Settings): void;
 }
 
@@ -12,6 +13,7 @@ interface MountOpts {
   initialTarget: TargetToken;
   onRun: () => void;
   onTargetChange: (t: TargetToken) => void;
+  onWalletChange: (name: string) => void;
 }
 
 const TARGETS: TargetToken[] = ["SOL", "USDC"];
@@ -45,6 +47,7 @@ export function mountUI(opts: MountOpts): UI {
         background: #10131b; color: #e5e7eb; border: 1px solid rgba(255,255,255,.15);
         border-radius: 9px; padding: 8px 10px; font-size: 13px; cursor: pointer;
       }
+      select.wallet { max-width: 150px; }
       .status { font-size: 12px; color: #c7cbd4; min-width: 160px; }
       .status.ok { color: #7cf7a6; font-size: 15px; font-weight: 800; }
       .status.err { color: #fca5a5; }
@@ -53,12 +56,14 @@ export function mountUI(opts: MountOpts): UI {
     </style>
     <div class="bar">
       <button class="run" id="run">⚡ Close &amp; Swap</button>
+      <select class="wallet" id="wallet" title="Wallet"><option value="">Wallet…</option></select>
       <select id="target" title="Swap vers"></select>
       <div class="status" id="status"><span class="dot idle"></span>Prêt</div>
     </div>
   `;
 
   const runBtn = shadow.getElementById("run") as HTMLButtonElement;
+  const walletSelect = shadow.getElementById("wallet") as HTMLSelectElement;
   const select = shadow.getElementById("target") as HTMLSelectElement;
   const status = shadow.getElementById("status") as HTMLDivElement;
 
@@ -77,6 +82,7 @@ export function mountUI(opts: MountOpts): UI {
   }
 
   runBtn.addEventListener("click", () => opts.onRun());
+  walletSelect.addEventListener("change", () => opts.onWalletChange(walletSelect.value));
   select.addEventListener("change", () => opts.onTargetChange(select.value as TargetToken));
 
   document.documentElement.appendChild(host);
@@ -94,7 +100,29 @@ export function mountUI(opts: MountOpts): UI {
       runBtn.disabled = false;
       setStatus(msg, "err");
     },
+    setWallets(names, selectedName) {
+      walletSelect.replaceChildren();
+      if (!names.length) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "Wallet legacy";
+        walletSelect.appendChild(option);
+        walletSelect.disabled = true;
+        return;
+      }
+      walletSelect.disabled = false;
+      for (const name of names) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        option.selected = name === selectedName;
+        walletSelect.appendChild(option);
+      }
+    },
     syncSettings(s) {
+      if (s.walletName && Array.from(walletSelect.options).some((option) => option.value === s.walletName)) {
+        walletSelect.value = s.walletName;
+      }
       if (s.defaultTarget && s.defaultTarget !== (select.value as TargetToken)) {
         select.value = s.defaultTarget;
       }

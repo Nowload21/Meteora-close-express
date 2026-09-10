@@ -19,12 +19,18 @@ import {
   type TargetToken,
 } from "./settings";
 import { mountUI, type UI } from "./ui";
+import {
+  connectStandardWallet,
+  listStandardWallets,
+  onStandardWalletsChanged,
+} from "./wallet-standard";
 
 const SRC = "mx";
 const SRC_BRIDGE = "mx-bridge";
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let ui: UI;
+let selectedWalletName = "";
 
 // ---------------------------------------------------------------------------
 // Settings bridge (talks to content-bridge.ts in the ISOLATED world)
@@ -43,7 +49,10 @@ window.addEventListener("message", (event) => {
       pending.get(msg.reqId)!(settings);
       pending.delete(msg.reqId);
     }
-    ui?.syncSettings(settings);
+    if (ui) {
+      refreshStandardWallets();
+      ui.syncSettings(settings);
+    }
   }
 
   if (msg.type === "mx-fetch-result" && msg.reqId && fetchPending.has(msg.reqId)) {
@@ -118,6 +127,10 @@ function saveTarget(target: TargetToken) {
   window.postMessage({ source: SRC, type: "set-settings", payload: { defaultTarget: target } }, "*");
 }
 
+function saveWalletName(walletName: string) {
+  window.postMessage({ source: SRC, type: "set-settings", payload: { walletName } }, "*");
+}
+
 // ---------------------------------------------------------------------------
 // Wallet
 // ---------------------------------------------------------------------------
@@ -146,7 +159,7 @@ async function connectedPubkey(provider: WalletProvider): Promise<PublicKey> {
   return new PublicKey(res.publicKey.toString());
 }
 
-async function signTransactions<T extends Transaction | VersionedTransaction>(
+async function signLegacyTransactions<T extends Transaction | VersionedTransaction>(
   provider: WalletProvider,
   txs: T[]
 ): Promise<T[]> {
@@ -171,6 +184,36 @@ async function signTransactions<T extends Transaction | VersionedTransaction>(
     signed.push((await provider.signTransaction(tx)) as T);
   }
   return signed;
+}
+
+interface WalletSession {
+  publicKey: PublicKey;
+  signTransactions<T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]>;
+}
+
+async function connectWalletSession(): Promise<WalletSession> {
+  if (selectedWalletName) return connectStandardWallet(selectedWalletName);
+
+  const provider = getProvider();
+  if (!provider) throw new Error("Aucun wallet compatible détecté.");
+  if (!provider.signAllTransactions && !provider.signTransaction) {
+    throw new Error("Le wallet ne supporte pas la signature des transactions.");
+  }
+
+  return {
+    publicKey: await connectedPubkey(provider),
+    signTransactions: <T extends Transaction | VersionedTransaction>(txs: T[]) =>
+      signLegacyTransactions(provider, txs),
+  };
+}
+
+function refreshStandardWallets() {
+  const wallets = listStandardWallets();
+  const configured = wallets.find((wallet) => wallet.name === settings.walletName);
+  const connected = wallets.find((wallet) => wallet.connected);
+  const jupiter = wallets.find((wallet) => /jupiter/i.test(wallet.name));
+  selectedWalletName = configured?.name ?? connected?.name ?? jupiter?.name ?? wallets[0]?.name ?? "";
+  ui?.setWallets(wallets.map((wallet) => wallet.name), selectedWalletName);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,18 +394,14 @@ async function jupiterSwapTx(
 async function closeAndSwap() {
   console.log(`[MeteoraExpress] ▶ Close & Swap cliqué (v${MX_VERSION})`);
   const t0 = performance.now();
-  const provider = getProvider();
-  if (!provider) return ui.fail("Aucun wallet détecté (Solflare / Jupiter).");
-  if (!provider.signAllTransactions && !provider.signTransaction) {
-    return ui.fail("Le wallet ne supporte pas la signature des transactions.");
-  }
 
   const poolAddress = poolAddressFromUrl();
   if (!poolAddress) return ui.fail("Ouvre une page /dlmm/<pool> pour détecter la position.");
 
   ui.busy("Connexion wallet…");
+  const wallet = await connectWalletSession();
   const conn = new Connection(settings.rpcUrl, "confirmed");
-  const user = await connectedPubkey(provider);
+  const user = wallet.publicKey;
 
   ui.busy("Lecture de la position…");
   const dlmm = await DLMM.create(conn, new PublicKey(poolAddress));
@@ -397,7 +436,7 @@ async function closeAndSwap() {
   }
 
   ui.busy("Signature (auto-approve)…");
-  const signedRemoves = await signTransactions(provider, removeTxs);
+  const signedRemoves = await wallet.signTransactions(removeTxs);
 
   ui.busy("Envoi close…");
   const removeSigs = await Promise.all(signedRemoves.map((tx) => sendSigned(conn, tx)));
@@ -430,7 +469,7 @@ async function closeAndSwap() {
 
   if (swapTxs.length) {
     ui.busy("Signature swap (auto-approve)…");
-    const signedSwaps = await signTransactions(provider, swapTxs);
+    const signedSwaps = await wallet.signTransactions(swapTxs);
     ui.busy("Envoi swap…");
     const swapSigs = await Promise.all(signedSwaps.map((tx) => sendSigned(conn, tx)));
     console.log("[MeteoraExpress] swap sigs", swapSigs);
@@ -453,7 +492,7 @@ async function closeAndSwap() {
 // Boot
 // ---------------------------------------------------------------------------
 
-const MX_VERSION = "0.3.1";
+const MX_VERSION = "0.4.0";
 
 (async function boot() {
   console.log(
@@ -461,6 +500,7 @@ const MX_VERSION = "0.3.1";
     "background:#22c55e;color:#08210f;font-weight:800;padding:2px 6px;border-radius:4px"
   );
   settings = await requestSettings();
+  selectedWalletName = settings.walletName;
   ui = mountUI({
     initialTarget: settings.defaultTarget,
     onRun: () => {
@@ -473,5 +513,12 @@ const MX_VERSION = "0.3.1";
       settings.defaultTarget = t;
       saveTarget(t);
     },
+    onWalletChange: (name) => {
+      selectedWalletName = name;
+      settings.walletName = name;
+      saveWalletName(name);
+    },
   });
+  refreshStandardWallets();
+  onStandardWalletsChanged(refreshStandardWallets);
 })();
